@@ -8,7 +8,7 @@ import {
   conversationsListAtom,
   loadedConversationsAtom,
   streamingStateAtom,
-} from "../stores/atoms";
+} from "../../stores/atoms";
 import Message from "./Message";
 import MessageInput from "./MessageInput";
 

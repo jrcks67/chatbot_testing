@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useRecoilValue, useSetRecoilState } from "recoil";
-import { conversationsListAtom } from "../stores/atoms";
+import { conversationsListAtom } from "../../stores/atoms";
 import SidebarItem from "./SidebarItem";
 import { useNavigate } from "react-router-dom";
 

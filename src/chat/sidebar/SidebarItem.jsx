@@ -1,7 +1,7 @@
 import React from "react";
 import { useSetRecoilState } from "recoil";
 import { useNavigate } from "react-router-dom";
-import { selectedConversationAtom } from "../stores/atoms";
+import { selectedConversationAtom } from "../../stores/atoms";
 
 const SidebarItem = ({ conversation }) => {
   const setSelectedConversation = useSetRecoilState(selectedConversationAtom);
