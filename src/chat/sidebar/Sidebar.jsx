@@ -1,12 +1,21 @@
-import React from "react";
-import { useRecoilValue } from "recoil";
+import React, { useEffect } from "react";
+import { useRecoilValue, useSetRecoilState } from "recoil";
 import { conversationsListAtom } from "../stores/atoms";
 import SidebarItem from "./SidebarItem";
 import { useNavigate } from "react-router-dom";
 
 const Sidebar = () => {
   const conversations = useRecoilValue(conversationsListAtom);
+  const setConversations = useSetRecoilState(conversationsListAtom);
   const navigate = useNavigate();
+
+  // 🔥 LOAD: Fetch conversations on app start
+  useEffect(() => {
+    fetch('/api/v1/conversations')
+      .then(res => res.json())
+      .then(data => setConversations(data))
+      .catch(console.error);
+  }, [setConversations]);
 
   const handleNewConversation = () => {
     navigate("/chat/new");

@@ -6,6 +6,8 @@ import {
   conversationMessagesAtomFamily,
   conversationStatusAtom,
   conversationsListAtom,
+  loadedConversationsAtom,
+  streamingStateAtom,
 } from "../stores/atoms";
 import Message from "./Message";
 import MessageInput from "./MessageInput";
@@ -21,6 +23,10 @@ const ConversationView = () => {
   const [messages, setMessages] = useRecoilState(
     conversationMessagesAtomFamily(selectedConversation || routeId)
   );
+  const [loadedConversations, setLoadedConversations] = useRecoilState(
+    loadedConversationsAtom
+  );
+  const [streamingState, setStreamingState] = useRecoilState(streamingStateAtom);
   const setConversations = useSetRecoilState(conversationsListAtom);
 
   // Determine if this is a "new" conversation route
@@ -37,33 +43,40 @@ const ConversationView = () => {
     }
   }, [routeId, setSelectedConversation, isNewRoute]);
 
-  // Fetch existing messages if not new
+  // Fetch existing messages if not new and not already loaded
   useEffect(() => {
     if (!selectedConversation || isNewRoute) return;
+    
+    // Check if already loaded to prevent redundant API calls
+    if (loadedConversations.includes(selectedConversation)) return;
 
     fetch(`/api/v1/messages/${selectedConversation}`)
       .then((res) => res.json())
-      .then((data) => setMessages(data))
+      .then((data) => {
+        setMessages(data);
+        // Mark as loaded
+        setLoadedConversations((old) => [...old, selectedConversation]);
+      })
       .catch(console.error);
-  }, [selectedConversation, setMessages, isNewRoute]);
+  }, [selectedConversation, setMessages, isNewRoute, loadedConversations, setLoadedConversations]);
 
   // Send message + handle lazy creation + streaming
   const handleSend = async (userText) => {
     if (!userText.trim()) return;
 
     let convId = selectedConversation;
+    let shouldNavigate = false;
 
     // Lazy creation for /new route
     if (isNewRoute) {
       convId = crypto.randomUUID();
+      shouldNavigate = true;
+      
       setSelectedConversation(convId);
-
       setStatus((old) => ({
         ...old,
         newConversations: new Set(old.newConversations).add(convId),
       }));
-
-      navigate(`/chat/${convId}`);
     }
 
     const userMsg = { id: crypto.randomUUID(), role: "user", content: userText };
@@ -74,8 +87,19 @@ const ConversationView = () => {
       streaming: true,
     };
 
-    // Optimistic UI
+    // Set up optimistic UI first
     setMessages((old) => [...old, userMsg, assistantMsg]);
+
+    // Set streaming state
+    setStreamingState({
+      isStreaming: true,
+      streamingMessageId: assistantMsg.id,
+    });
+
+    // Navigate AFTER setting up UI
+    if (shouldNavigate) {
+      navigate(`/chat/${convId}`, { replace: true });
+    }
 
     // Backend streaming
     try {
@@ -111,6 +135,12 @@ const ConversationView = () => {
         )
       );
 
+      // Clear streaming state
+      setStreamingState({
+        isStreaming: false,
+        streamingMessageId: null,
+      });
+
       // Move conversation to existing
       setStatus((old) => {
         const newSet = new Set(old.newConversations);
@@ -128,20 +158,24 @@ const ConversationView = () => {
       });
     } catch (err) {
       console.error(err);
+      // Clear streaming state on error
+      setStreamingState({
+        isStreaming: false,
+        streamingMessageId: null,
+      });
     }
   };
 
-if (!selectedConversation && isNewRoute) {
-  return (
-    <div className="flex flex-col h-full p-4">
-      <div className="flex-1 text-gray-400">
-        Start typing to create a new conversation...
+  if (!selectedConversation && isNewRoute) {
+    return (
+      <div className="flex flex-col h-full p-4">
+        <div className="flex-1 text-gray-400">
+          Start typing to create a new conversation...
+        </div>
+        <MessageInput onSend={handleSend} />
       </div>
-      <MessageInput onSend={handleSend} />
-    </div>
-  );
-}
-
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
