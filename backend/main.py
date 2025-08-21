@@ -10,7 +10,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import asyncio
-
+import json
 from fastapi import BackgroundTasks
 
 load_dotenv()
@@ -26,8 +26,8 @@ class Conversations(BaseModel):
     title: str
 
 class Message(BaseModel):
-    id: OopUUID
-    conversation_id: UUID
+    id: UUID
+    conversation_id: Optional[UUID] = None
     role: RoleEnum
     content: str
 
@@ -75,13 +75,15 @@ def save_message_to_db(conversation_id: UUID, role: RoleEnum, content: str):
     data.messages.append(Message(id=uuid.uuid4(),conversation_id=conversation_id, role=role, content=content))
 
 
+
 @app.post("/chat/completions")
 def chat_completions(prompt: Message, background_tasks: BackgroundTasks):
+    conversation_id = prompt.conversation_id or uuid.uuid4()
 
-    if not prompt.conversation_id in data.conversations:
-        data.conversations.append(Conversations(id=uuid.uuid4(), title="Untitled"))
+    if conversation_id not in [conversation.id for conversation in data.conversations ]:
+        data.conversations.append(Conversations(id=conversation_id, title="Untitled"))
     
-    data.messages.append(Message(id=prompt.id, conversation_id=prompt.conversation_id, role=RoleEnum.user, content=prompt.content))
+    data.messages.append(Message(id=prompt.id, conversation_id=conversation_id, role=RoleEnum.user, content=prompt.content))
 
     # llm prompt 
     # 1. get list of messages for a particular conversation id
@@ -103,15 +105,22 @@ def chat_completions(prompt: Message, background_tasks: BackgroundTasks):
   
     llm_response = client.chat.completions.create(model="gpt-4o",messages=llm_prompt, stream=True)
 
-    full_response=[""]
+
     def event_generator():
+        full_response=""
         for chunk in llm_response:
             delta = chunk.choices[0].delta
             if delta.content:
-                full_response[0] += delta.content
+                full_response += delta.content
                 yield f"data: {delta.content}\n\n" # SSE requires this format
-    
-    background_tasks.add_task(save_message_to_db, prompt.conversation_id, RoleEnum.assistant, full_response[0])
+        
+        new_message = Message(id=uuid.uuid4(), conversation_id=conversation_id, role=RoleEnum.assistant, content=full_response)
+
+        data.messages.append(new_message)
+
+        yield f"data: {json.dumps(new_message.dict())}\n\n"
+        
+
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
