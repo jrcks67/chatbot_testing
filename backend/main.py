@@ -28,7 +28,7 @@ class Conversations(BaseModel):
 class Message(BaseModel):
     id: UUID
     conversation_id: Optional[UUID] = None
-    role: RoleEnum
+    role:Optional[RoleEnum] = RoleEnum.user
     content: str
 
 
@@ -112,13 +112,14 @@ def chat_completions(prompt: Message, background_tasks: BackgroundTasks):
             delta = chunk.choices[0].delta
             if delta.content:
                 full_response += delta.content
+                print(f"data: {delta.content}\n\n")
                 yield f"data: {delta.content}\n\n" # SSE requires this format
         
         new_message = Message(id=uuid.uuid4(), conversation_id=conversation_id, role=RoleEnum.assistant, content=full_response)
 
         data.messages.append(new_message)
 
-        yield f"data: {json.dumps(new_message.dict())}\n\n"
+        yield f"data: {json.dumps(new_message.dict(), default=str)}\n\n"
         
 
 
