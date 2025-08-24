@@ -67,7 +67,7 @@ export const conversationsListAtom = atom({
 // Track which conversations have been loaded from backend
 export const loadedConversationsAtom = atom({
   key: "loadedConversations",
-  default: [],
+  default: new Set(),
 });
 
 // Streaming state
